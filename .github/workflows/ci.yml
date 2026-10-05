@@ -16,35 +16,35 @@ concurrency:
 
 jobs:
   lint-and-test:
-    name: ðŸ” Qualidade, Linters & Testes Automatizados
+    name: Lint, Testes e Build
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: ðŸ“¥ Checkout Seguro do CÃ³digo
+      - name: Checkout do Codigo
         uses: actions/checkout@v4
 
-      - name: âš™ï¸ Configurar Runtime Node.js com Cache Nativo
+      - name: Configurar Node.js com Cache
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      - name: ðŸ“¦ InstalaÃ§Ã£o DeterminÃ­stica de DependÃªncias
+      - name: Instalar Dependencias
         run: npm ci
 
-      - name: ðŸ§¹ VerificaÃ§Ã£o de Qualidade e Sintaxe (Lint)
+      - name: Linter
         run: npm run lint --if-present
 
-      - name: ðŸ§ª ExecuÃ§Ã£o de Testes Automatizados (Fail Fast)
+      - name: Testes Unitarios
         run: npm test -- --watchAll=false --passWithNoTests
 
-      - name: ðŸ—ï¸ Compilar / Build da AplicaÃ§Ã£o
+      - name: Build da Aplicacao
         run: CI=false npm run build
 
   security-scan:
-    name: ðŸ›¡ï¸ DevSecOps (SAST Semgrep & Container Trivy)
+    name: DevSecOps (SAST Semgrep & Container Trivy)
     needs: [lint-and-test]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -52,11 +52,11 @@ jobs:
       contents: read
 
     steps:
-      - name: ðŸ“¥ Checkout do CÃ³digo
+      - name: Checkout do Codigo
         uses: actions/checkout@v4
 
       # 1. SAST - Semgrep
-      - name: ðŸ” SAST com Semgrep (Regras OWASP Top 10)
+      - name: SAST com Semgrep (OWASP Top 10)
         uses: semgrep/semgrep-action@v1
         with:
           config: >-
@@ -64,12 +64,12 @@ jobs:
             p/security-audit
           auditOn: push
 
-      # 2. Build efÃªmero para anÃ¡lise
-      - name: ðŸ³ Compilar Imagem Docker EfÃªmera para AnÃ¡lise
+      # 2. Build efemero para analise
+      - name: Build Imagem Docker Local
         run: docker build -t app-audit:local .
 
       # 3. Trivy Container Scanning
-      - name: ðŸ›¡ï¸ Escanear Imagem Docker com Aqua Security Trivy
+      - name: Escanear Imagem Docker com Trivy
         uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: 'app-audit:local'
@@ -80,7 +80,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
   dast-scan:
-    name: ðŸŽ¯ DAST DinÃ¢mico com OWASP ZAP Baseline (BÃ´nus)
+    name: DAST Dinamico com OWASP ZAP (Bonus)
     needs: [security-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -89,20 +89,20 @@ jobs:
       issues: write
 
     steps:
-      - name: ðŸ“¥ Checkout do CÃ³digo
+      - name: Checkout do Codigo
         uses: actions/checkout@v4
 
-      - name: ðŸ³ Compilar e Inicializar Container em Background
+      - name: Subir Container em Background
         run: |
           docker build -t app-dast:local .
           docker run -d --name app-running -p 80:80 app-dast:local
           sleep 5
           curl -I http://localhost:80
 
-      - name: ðŸš€ Executar OWASP ZAP Baseline Scan
+      - name: Executar OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.14.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: 'http://localhost:80'
-          issue_title: 'ðŸš¨ Alerta de SeguranÃ§a DAST (OWASP ZAP)'
+          issue_title: 'Alerta de Seguranca DAST (OWASP ZAP)'
           fail_action: false

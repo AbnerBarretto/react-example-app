@@ -1,0 +1,108 @@
+name: Continuous Integration & DevSecOps (CI)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: 🔍 Qualidade, Linters & Testes Automatizados
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout Seguro do Código
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configurar Runtime Node.js com Cache Nativo
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 📦 Instalação Determinística de Dependências
+        run: npm ci
+
+      - name: 🧹 Verificação de Qualidade e Sintaxe (Lint)
+        run: npm run lint --if-present
+
+      - name: 🧪 Execução de Testes Automatizados (Fail Fast)
+        run: npm test -- --watchAll=false --passWithNoTests
+
+      - name: 🏗️ Compilar / Build da Aplicação
+        run: npm run build
+
+  security-scan:
+    name: 🛡️ DevSecOps (SAST Semgrep & Container Trivy)
+    needs: [lint-and-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📥 Checkout do Código
+        uses: actions/checkout@v4
+
+      # 1. SAST - Semgrep
+      - name: 🔍 SAST com Semgrep (Regras OWASP Top 10)
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/security-audit
+          auditOn: push
+
+      # 2. Build efêmero para análise
+      - name: 🐳 Compilar Imagem Docker Efêmera para Análise
+        run: docker build -t app-audit:local .
+
+      # 3. Trivy Container Scanning
+      - name: 🛡️ Escanear Imagem Docker com Aqua Security Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: 'app-audit:local'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  dast-scan:
+    name: 🎯 DAST Dinâmico com OWASP ZAP Baseline (Bônus)
+    needs: [security-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: 📥 Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: 🐳 Compilar e Inicializar Container em Background
+        run: |
+          docker build -t app-dast:local .
+          docker run -d --name app-running -p 80:80 app-dast:local
+          sleep 5
+          curl -I http://localhost:80
+
+      - name: 🚀 Executar OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://localhost:80'
+          issue_title: '🚨 Alerta de Segurança DAST (OWASP ZAP)'
+          fail_action: false

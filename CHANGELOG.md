@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/AbnerBarretto/react-example-app/compare/v1.0.0...v1.0.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* optimize multi-arch docker build using buildplatform for builder stage ([35dcfd8](https://github.com/AbnerBarretto/react-example-app/commit/35dcfd8c5669f933fb030087f0bb6c2dd4e06bbf))
+
 ## 1.0.0 (2026-10-06)
 
 

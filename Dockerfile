@@ -6,9 +6,9 @@ RUN npm ci
 COPY . .
 RUN CI=false npm run build
 
-# Imagem final de runtime enxuta e segura com Nginx Alpine
-FROM nginx:1.27-alpine AS runner
-RUN rm -rf /etc/nginx/conf.d/*
+# Imagem final com Nginx Alpine atualizado com últimos patches de segurança
+FROM nginx:alpine AS runner
+RUN apk update && apk upgrade --no-cache && rm -rf /etc/nginx/conf.d/*
 COPY nginx.lab.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/build /usr/share/nginx/html
 EXPOSE 80
